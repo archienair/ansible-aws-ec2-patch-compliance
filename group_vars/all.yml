@@ -1,0 +1,16 @@
+---
+# group_vars/all.yml — shared variables across all environments
+
+critical_services:
+  - sshd
+  - amazon-ssm-agent
+  - crond
+
+patch_exclude_packages: []
+
+security_only: false
+
+disk_warn_threshold: 85
+disk_fail_threshold: 95
+
+patch_log_dir: /var/log/patch-reports

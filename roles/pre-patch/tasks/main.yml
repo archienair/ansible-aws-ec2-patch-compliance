@@ -1,0 +1,41 @@
+---
+# roles/pre-patch/tasks/main.yml
+
+- name: record pre-patch kernel version
+  command: uname -r
+  register: pre_kernel
+  changed_when: false
+
+- name: save pre-patch kernel to file
+  copy:
+    content: "{{ pre_kernel.stdout }}"
+    dest: /tmp/pre-patch-kernel.txt
+
+- name: check disk space before patching
+  assert:
+    that:
+      - item.size_available > item.size_total * 0.20
+    fail_msg: "Insufficient disk space on {{ item.mount }} — aborting patch."
+  loop: "{{ ansible_mounts }}"
+  when: item.mount in ['/', '/var', '/tmp']
+
+- name: snapshot installed packages
+  shell: rpm -qa --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > /tmp/pre-patch-packages.txt
+  changed_when: false
+
+- name: gather service facts pre-patch
+  service_facts:
+
+- name: assert critical services are running pre-patch
+  assert:
+    that:
+      - ansible_facts.services[item + '.service'] is defined
+      - ansible_facts.services[item + '.service'].state == 'running'
+    fail_msg: "{{ item }} is NOT running before patch — investigate before proceeding."
+  loop: "{{ critical_services }}"
+
+- name: create patch log directory
+  file:
+    path: "{{ patch_log_dir }}"
+    state: directory
+    mode: '0755'

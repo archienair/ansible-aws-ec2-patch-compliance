@@ -1,0 +1,29 @@
+---
+# roles/patching/tasks/main.yml
+
+- name: patch RHEL 7 / CentOS 7 systems
+  yum:
+    name: "*"
+    state: latest
+    security: "{{ security_only | default(false) }}"
+    exclude: "{{ patch_exclude_packages | default([]) }}"
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version | int <= 7
+  notify: reboot if required
+
+- name: patch RHEL 8+ / Amazon Linux 2023 systems
+  dnf:
+    name: "*"
+    state: latest
+    security: "{{ security_only | default(false) }}"
+    exclude: "{{ patch_exclude_packages | default([]) }}"
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version | int >= 8
+  notify: reboot if required
+
+- name: check if reboot is required
+  command: needs-restarting -r
+  register: reboot_required
+  failed_when: false
+  changed_when: reboot_required.rc == 1
+
+- name: flush handlers (trigger reboot now if needed)
+  meta: flush_handlers

@@ -1,0 +1,56 @@
+---
+# roles/post-patch/tasks/main.yml
+
+- name: wait for system to come back after reboot
+  wait_for_connection:
+    delay: 15
+    timeout: 300
+
+- name: gather facts post-reboot
+  setup:
+
+- name: gather service facts post-patch
+  service_facts:
+
+- name: assert critical services are running post-patch
+  assert:
+    that:
+      - ansible_facts.services[item + '.service'].state == 'running'
+    fail_msg: "ALERT: {{ item }} is DOWN after patching on {{ inventory_hostname }}"
+    success_msg: "OK: {{ item }} is running on {{ inventory_hostname }}"
+  loop: "{{ critical_services }}"
+
+- name: record post-patch kernel version
+  command: uname -r
+  register: post_kernel
+  changed_when: false
+
+- name: log kernel version change
+  debug:
+    msg: "Kernel: {{ lookup('file', '/tmp/pre-patch-kernel.txt') }} → {{ post_kernel.stdout }}"
+
+- name: check disk usage post-patch
+  assert:
+    that:
+      - item.size_available > item.size_total * 0.15
+    fail_msg: "WARNING: Low disk space on {{ item.mount }} after patching"
+  loop: "{{ ansible_mounts }}"
+  when: item.mount in ['/', '/var']
+
+- name: write patch summary to log
+  copy:
+    content: |
+      ===== PATCH REPORT =====
+      Host     : {{ inventory_hostname }}
+      Date     : {{ ansible_date_time.date }}
+      Kernel   : {{ post_kernel.stdout }}
+      OS       : {{ ansible_distribution }} {{ ansible_distribution_version }}
+      Status   : PASSED
+      ========================
+    dest: "{{ patch_log_dir }}/patch-report-{{ ansible_date_time.date }}.txt"
+
+- name: fetch patch report to control node
+  fetch:
+    src: "{{ patch_log_dir }}/patch-report-{{ ansible_date_time.date }}.txt"
+    dest: "logs/{{ inventory_hostname }}-patch-report-{{ ansible_date_time.date }}.txt"
+    flat: yes

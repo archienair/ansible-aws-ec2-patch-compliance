@@ -1,0 +1,14 @@
+---
+# group_vars/prod.yml — PROD-specific overrides
+
+security_only: false
+patch_exclude_packages:
+  - kernel-devel
+
+# PROD uses SSM — no SSH
+ansible_connection: aws_ssm
+ansible_aws_ssm_region: us-east-1
+
+# Stricter disk threshold for PROD
+disk_warn_threshold: 75
+disk_fail_threshold: 85

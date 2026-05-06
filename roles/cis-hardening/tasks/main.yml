@@ -1,0 +1,65 @@
+---
+# roles/cis-hardening/tasks/main.yml
+
+- name: set kernel parameters (CIS 3.x controls)
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+    sysctl_file: /etc/sysctl.d/99-cis.conf
+  loop:
+    - { name: "net.ipv4.ip_forward",                   value: "0" }
+    - { name: "net.ipv4.conf.all.accept_redirects",    value: "0" }
+    - { name: "net.ipv4.conf.all.send_redirects",      value: "0" }
+    - { name: "net.ipv4.conf.all.accept_source_route", value: "0" }
+    - { name: "kernel.randomize_va_space",              value: "2" }
+    - { name: "fs.suid_dumpable",                       value: "0" }
+    - { name: "net.ipv4.tcp_syncookies",                value: "1" }
+
+- name: configure SSH hardening (CIS 5.2)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    validate: "sshd -t -f %s"
+  loop:
+    - { regexp: '^#?PermitRootLogin',        line: 'PermitRootLogin no' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?MaxAuthTries',           line: 'MaxAuthTries 3' }
+    - { regexp: '^#?ClientAliveInterval',    line: 'ClientAliveInterval 300' }
+    - { regexp: '^#?ClientAliveCountMax',    line: 'ClientAliveCountMax 0' }
+    - { regexp: '^#?X11Forwarding',          line: 'X11Forwarding no' }
+  notify: restart sshd
+
+- name: set password quality requirements (CIS 5.4)
+  lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^#?minlen',  line: 'minlen = 14' }
+    - { regexp: '^#?dcredit', line: 'dcredit = -1' }
+    - { regexp: '^#?ucredit', line: 'ucredit = -1' }
+    - { regexp: '^#?ocredit', line: 'ocredit = -1' }
+    - { regexp: '^#?lcredit', line: 'lcredit = -1' }
+
+- name: configure account lockout via pam_faillock (CIS 5.4.2)
+  lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^#?deny',        line: 'deny = 5' }
+    - { regexp: '^#?unlock_time', line: 'unlock_time = 900' }
+
+- name: disable unused services (CIS 2.x)
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - avahi-daemon
+    - cups
+    - rpcbind
+  ignore_errors: true

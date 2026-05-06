@@ -1,0 +1,35 @@
+---
+- name: PROD Environment — Monthly Patch Cycle (Maintenance Window)
+  hosts: prod
+  become: yes
+  serial: 1
+  max_fail_percentage: 0
+
+  pre_tasks:
+    - name: announce PROD patch start
+      debug:
+        msg: "PROD patch cycle starting on {{ inventory_hostname }} — {{ ansible_date_time.iso8601 }}"
+
+    - name: confirm PROD patch (safety gate)
+      pause:
+        prompt: "You are about to patch PROD. Type 'yes' to confirm"
+      register: prod_confirm
+      when: not (auto_approve_prod | default(false))
+
+    - name: abort if not confirmed
+      fail:
+        msg: "PROD patch aborted by operator."
+      when:
+        - not (auto_approve_prod | default(false))
+        - prod_confirm.user_input | lower != 'yes'
+
+  roles:
+    - role: pre-patch
+    - role: patching
+    - role: post-patch
+    - role: cis-hardening
+
+  post_tasks:
+    - name: PROD patch complete
+      debug:
+        msg: "PROD patch cycle COMPLETE on {{ inventory_hostname }} — {{ ansible_date_time.iso8601 }}"

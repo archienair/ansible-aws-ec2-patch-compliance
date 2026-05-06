@@ -1,0 +1,9 @@
+---
+# roles/patching/handlers/main.yml
+
+- name: reboot if required
+  reboot:
+    reboot_timeout: 300
+    post_reboot_delay: 30
+    test_command: systemctl is-active sshd
+  when: reboot_required.rc == 1

@@ -1,0 +1,22 @@
+---
+- name: DEV Environment — Monthly Patch Cycle
+  hosts: dev
+  become: yes
+  serial: 1
+  max_fail_percentage: 0
+
+  pre_tasks:
+    - name: announce patch start
+      debug:
+        msg: "Starting patch cycle on {{ inventory_hostname }} at {{ ansible_date_time.iso8601 }}"
+
+  roles:
+    - role: pre-patch
+    - role: patching
+    - role: post-patch
+    - role: cis-hardening
+
+  post_tasks:
+    - name: patch cycle complete
+      debug:
+        msg: "Patch cycle completed successfully on {{ inventory_hostname }}"
